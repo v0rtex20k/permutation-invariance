@@ -76,12 +76,18 @@ def interpolate_state_dicts(state_dict1, state_dict2, num_alphas=11):
                 
     return state_dicts
 
-def permute_one_neuron(model):
+def permute_one_neuron(model, is_resnet18=False):
     
     layer_name = random.choice(["layer1", "layer2", "layer3", "layer4"])
     layer = getattr(model, layer_name)
     block = random.choice(list(layer))
-    block_layers = random.choice([["conv1", "bn1", "conv2"], ["conv2", "bn2", "conv3"]])
+    
+    # ResNet-18 uses BasicBlock (conv1->bn1->conv2->bn2)
+    # ResNet-50 uses Bottleneck (conv1->bn1->conv2->bn2->conv3->bn3)
+    if is_resnet18:
+        block_layers = ["conv1", "bn1", "conv2"]  # Only one option for BasicBlock
+    else:
+        block_layers = random.choice([["conv1", "bn1", "conv2"], ["conv2", "bn2", "conv3"]])
 
     conv_a = getattr(block, block_layers[0])
     bn = getattr(block, block_layers[1])
@@ -100,6 +106,33 @@ def permute_one_neuron(model):
 
     return model
 
+def permute_full_layer(model, is_resnet18=False):
+    """Apply a full random permutation to ALL intermediate channels in a random block."""
+    
+    layer_name = random.choice(["layer1", "layer2", "layer3", "layer4"])
+    layer = getattr(model, layer_name)
+    block = random.choice(list(layer))
+    
+    if is_resnet18:
+        # Permute between conv1-conv2
+        perm = torch.randperm(block.conv1.out_channels)
+        permutations.permute_conv2d_out_channels(block.conv1, perm)
+        permutations.permute_batchnorm2d(block.bn1, perm)
+        permutations.permute_conv2d_in_channels(block.conv2, perm)
+    else:
+        # Permute between conv1-conv2 AND conv2-conv3
+        perm1 = torch.randperm(block.conv1.out_channels)
+        permutations.permute_conv2d_out_channels(block.conv1, perm1)
+        permutations.permute_batchnorm2d(block.bn1, perm1)
+        permutations.permute_conv2d_in_channels(block.conv2, perm1)
+        
+        perm2 = torch.randperm(block.conv2.out_channels)
+        permutations.permute_conv2d_out_channels(block.conv2, perm2)
+        permutations.permute_batchnorm2d(block.bn2, perm2)
+        permutations.permute_conv2d_in_channels(block.conv3, perm2)
+
+    return model
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="main_imagenet1k.py")
     parser.add_argument("--batch_size", default=128, help="Batch size (default: 128)", type=int)
@@ -110,6 +143,8 @@ if __name__=="__main__":
     parser.add_argument("--num_perms", default=1, help="Number of permutations (default: 1)", type=int)
     parser.add_argument("--num_workers", default=16, help="Number of workers (default: 16)", type=int)
     parser.add_argument("--random_state", default=42, help="Random state (default: 42)", type=int)
+    parser.add_argument("--model", default="resnet50", help="Model architecture: resnet18 or resnet50 (default: resnet50)", type=str)
+    parser.add_argument("--full_perm", action="store_true", help="Use full layer permutation instead of single neuron swaps")
     args = parser.parse_args()
             
     random.seed(args.random_state)
@@ -130,11 +165,22 @@ if __name__=="__main__":
     train_indices = torch.randperm(len(train_dataset))[:(args.num_batches * args.batch_size)].view(args.num_batches, args.batch_size)
     val_indices = torch.randperm(len(val_dataset))[:(args.num_batches * args.batch_size)].view(args.num_batches, args.batch_size)
             
-    model1 = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V1)
-    model2 = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V1)
+    is_resnet18 = (args.model == "resnet18")
+    if is_resnet18:
+        model1 = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
+        model2 = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
+        print("Using ResNet-18...")
+    else:
+        model1 = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V1)
+        model2 = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V1)
+        print("Using ResNet-50...")
 
+    # Apply permutations
     for _ in range(args.num_perms):
-        model2 = permute_one_neuron(model2)
+        if args.full_perm:
+            model2 = permute_full_layer(model2, is_resnet18)
+        else:
+            model2 = permute_one_neuron(model2, is_resnet18)
         
     params1 = torch.nn.utils.parameters_to_vector(model1.parameters())
     params2 = torch.nn.utils.parameters_to_vector(model2.parameters())
