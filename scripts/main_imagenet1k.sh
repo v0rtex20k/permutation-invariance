@@ -1,17 +1,17 @@
 #!/bin/bash
 #SBATCH --array=0-11%10
-#SBATCH --error=/cluster/tufts/hugheslab/varsen01/slurmlog/err/log_%j.err
+#SBATCH --error=/cluster/home/varsen01/slurmlog/err/log_%j.err
 #SBATCH --gres=gpu:a100:1
 #SBATCH --mem=64g
 #SBATCH --ntasks=16
-#SBATCH --output=/cluster/tufts/hugheslab/varsen01/slurmlog/out/log_%j.out
+#SBATCH --output=/cluster/home/varsen01/slurmlog/out/log_%j.out
 #SBATCH --partition=gpu
 #SBATCH --time=24:00:00
 
 source ~/.bashrc
 conda activate l3d_2024f_cuda12_1
 IMAGENET_DIR="/cluster/tufts/hugheslab/datasets/ImageNet"
-EXP_DIR="/cluster/tufts/hugheslab/varsen01/permutation-invariance/experiments/imagenet1k"
+EXP_DIR="/cluster/home/varsen01/permutation-invariance/experiments/imagenet1k"
 
 # Define an array of commands
 experiments=(
