@@ -5,7 +5,7 @@
 #SBATCH --mem=64g
 #SBATCH --ntasks=16
 #SBATCH --output=/cluster/tufts/hugheslab/varsen01/slurmlog/out/log_%j.out
-#SBATCH --partition=hugheslab
+#SBATCH --partition=gpu
 #SBATCH --time=24:00:00
 
 source ~/.bashrc
