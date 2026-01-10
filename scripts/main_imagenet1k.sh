@@ -8,6 +8,7 @@
 #SBATCH --partition=gpu
 #SBATCH --time=24:00:00
 
+source ~/miniconda3/etc/profile.d/conda.sh 
 source ~/.bashrc
 conda activate l3d_2024f_cuda12_1
 IMAGENET_DIR="/cluster/tufts/hugheslab/datasets/ImageNet"
